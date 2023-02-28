@@ -1,0 +1,23 @@
+set heading off
+set echo off
+set pages 999
+set lines 30000
+set long 5000000
+set trims on
+
+col DDL_STMT for a500
+
+ACCEPT user_name CHAR PROMPT 'Enter the user/role name >'
+
+execute DBMS_METADATA.SET_TRANSFORM_PARAM(DBMS_METADATA.SESSION_TRANSFORM,'SQLTERMINATOR',true);
+
+spool extract_user.log
+
+SELECT DBMS_METADATA.GET_DDL('USER',UPPER('&user_name')) "DDL_STMT" FROM dual;
+SELECT DBMS_METADATA.GET_DDL('ROLE',UPPER('&user_name')) "DDL_STMT" FROM dual;
+--SELECT DBMS_METADATA.GET_DDL('PROFILE',UPPER('&user_name')) "DDL_STMT" FROM dual;
+SELECT DBMS_METADATA.GET_GRANTED_DDL('ROLE_GRANT',UPPER('&user_name')) "DDL_STMT" FROM dual;
+SELECT DBMS_METADATA.GET_GRANTED_DDL('OBJECT_GRANT',UPPER('&user_name')) "DDL_STMT" FROM dual;
+SELECT DBMS_METADATA.GET_GRANTED_DDL('SYSTEM_GRANT',UPPER('&user_name')) "DDL_STMT" FROM dual;
+
+spool off

@@ -44,7 +44,7 @@ END;
 /
 
 -- check remaining objects
--- select object_type,count(1) from dba_objects where owner='SITSx' group by object_type;
+-- select object_type,count(1) from dba_objects where owner='<schema_name>' group by object_type;
 
 -- purge tables in recyclebin
--- select 'PURGE TABLE ' || OWNER || '."' || OBJECT_NAME || '";' from dba_recyclebin where owner='SITS' AND type='TABLE';
+-- select 'PURGE TABLE ' || OWNER || '."' || OBJECT_NAME || '";' from dba_recyclebin where owner='<schema_name>' AND type='TABLE';

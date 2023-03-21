@@ -1,0 +1,213 @@
+variable n VARCHAR2(13);
+exec :n:='56fntvrjmfkxg';
+
+COL END_INTERVAL_TIME FOR A30
+SELECT SNAP.END_INTERVAL_TIME,
+STAT.INSTANCE_NUMBER,
+STAT.PLAN_HASH_VALUE,
+STAT.EXECUTIONS_TOTAL,
+STAT.ROWS_PROCESSED_TOTAL,
+STAT.DISK_READS_TOTAL,
+STAT.BUFFER_GETS_TOTAL,
+STAT.CPU_TIME_TOTAL/1000000 "CPU_TIME_TOTAL(s)",
+STAT.IOWAIT_TOTAL/1000000 "IOWAIT_TOTAL(s)",
+STAT.ELAPSED_TIME_TOTAL/1000000 "ELAPSED_TIME_TOTAL(s)"
+FROM DBA_HIST_SQLSTAT STAT,
+DBA_HIST_SNAPSHOT SNAP
+WHERE STAT.SQL_ID =:n
+AND STAT.SNAP_ID = SNAP.SNAP_ID
+AND STAT.INSTANCE_NUMBER=SNAP.INSTANCE_NUMBER
+ORDER BY STAT.SNAP_ID, STAT.INSTANCE_NUMBER;
+
+COL OPER FOR A45
+col object_name for A40
+SELECT RPAD(' ',DEPTH,' ')||OPERATION AS OPER, OPTIONS, OBJECT_NAME,COST
+FROM DBA_HIST_SQL_PLAN
+WHERE SQL_ID='ffdqdjxrvrf9z' and
+PLAN_HASH_VALUE='2230617024'
+ORDER BY TIMESTAMP,ID;
+
+-- check histogram
+set lines 200 pages 200
+col owner for a20
+col table_name for a40
+col column_name for a40
+SELECT OWNER,TABLE_NAME, COLUMN_NAME, HISTOGRAM, NUM_DISTINCT, TO_CHAR(LAST_ANALYZED,'YYYY-MM-DD HH24:MI:SS') "LAST_ANALYZED" FROM DBA_TAB_COL_STATISTICS WHERE TABLE_NAME IN ('CORDER','CORDER_ROUTE','CEQT')
+AND HISTOGRAM<>'NONE'
+ORDER BY 1,2,3;
+
+
+BEGIN 
+ dbms_stats.gather_table_stats('LCSRPT_MASTER', 'CEQT', METHOD_OPT => 'for columns EQT_ID size 1');
+END; 
+/
+
+
+BEGIN 
+ dbms_stats.gather_table_stats('LCSRPT_MASTER', 'CEQT', METHOD_OPT => 'for ALL columns size 1');
+END; 
+/
+
+BEGIN 
+ dbms_stats.gather_table_stats('LCSRPT_MASTER', 'CEQT');
+END; 
+/
+
+
+BEGIN
+ dbms_stats.set_table_prefs('LCSRPT_MASTER', 'CEQT', 'METHOD_OPT', -
+ 'FOR ALL COLUMNS SIZE 254 FOR COLUMN SIZE 1 PROD_ID');
+END;
+/ 
+
+BEGIN
+ dbms_stats.set_table_prefs('LCSRPT_MASTER', 'CEQT', 'METHOD_OPT', -
+ 'FOR COLUMN SIZE 1 EQT_ID');
+END;
+/ 
+
+-- AUTOTASK
+COL CLIENT_NAME FORMAT A31
+SELECT
+  CLIENT_NAME,
+  STATUS
+FROM
+  DBA_AUTOTASK_CLIENT;
+
+SELECT * FROM DBA_AUTOTASK_WINDOW_CLIENTS ORDER BY WINDOW_NEXT_TIME;
+
+### To disable all autotask jobs:
+EXEC DBMS_AUTO_TASK_ADMIN.DISABLE;
+
+### To disable the autotask clients individually:
+a. To disable auto optimizer stats collection
+EXEC DBMS_AUTO_TASK_ADMIN.DISABLE('AUTO OPTIMIZER STATS COLLECTION',NULL,NULL);
+b. To disable auto space advisor
+EXEC DBMS_AUTO_TASK_ADMIN.DISABLE('AUTO SPACE ADVISOR',NULL,NULL);
+c. To disable sql tuning advisor
+EXEC DBMS_AUTO_TASK_ADMIN.DISABLE('SQL TUNING ADVISOR',NULL,NULL);
+
+### check autotask history
+COL WINDOW_START_TIME FOR A40
+COL WINDOW_DURATION FOR A30
+COL JOB_NAME FOR A25
+COL JOB_STATUS FOR A15
+COL JOB_START_TIME FOR A40
+COL JOB_DURATION FOR A20
+COL JOB_INFO FOR A20
+SELECT * FROM DBA_AUTOTASK_JOB_HISTORY ORDER BY WINDOW_START_TIME;
+
+-- SPM
+SELECT SQL_HANDLE, SQL_TEXT, PLAN_NAME, ORIGIN, ENABLED, ACCEPTED
+FROM DBA_SQL_PLAN_BASELINES;
+
+-- SQL Profile
+COL NAME FOR A40
+COL CREATED FOR A40
+SELECT NAME,CREATED,TYPE,STATUS,DESCRIPTION FROM DBA_SQL_PROFILES;
+
+-- Stored Outlines
+SELECT COUNT(*) FROM DBA_OUTLINES;
+
+
+-- Move SPM from One Database to Another
+-- 11g
+exec DBMS_SPM.CREATE_STGTAB_BASELINE('STGTAB', 'SCOTT');
+
+var x number;
+ begin
+ :x := DBMS_SPM.PACK_STGTAB_BASELINE('STGTAB', 'SCOTT');
+ end;
+ /
+
+#export scott.stgtab
+expdp \'/ as sysdba\' directory=DATA_PUMP_DIR dumpfile=cplus_spm_profile.dmp logfile=cplus_spm_profile.log tables=scott.stgtab
+
+-- 12c
+#import scott.stgtab
+impdp \'/ as sysdba\' directory=DATA_PUMP_DIR dumpfile=cplus_spm_profile.dmp logfile=cplus_spm_profile.log tables=scott.stgtab
+
+var x number;
+begin
+:x := DBMS_SPM.UNPACK_STGTAB_BASELINE('STGTAB', 'SCOTT');
+end;
+/
+
+-- Move SQL Profile from One Database to Another
+exec DBMS_SQLTUNE.CREATE_STGTAB_SQLPROF(table_name=>'STAGE',schema_name=>'SCOTT');
+
+SQL> SELECT name FROM dba_sql_profiles; 
+NAME
+----------------------------------------
+SYS_SQLPROF_0234d4b826c00001
+SYS_SQLPROF_0134f8c56a7c0000
+SYS_SQLPROF_0234b1d409530000
+
+
+SQL> 
+EXEC DBMS_SQLTUNE.PACK_STGTAB_SQLPROF (staging_table_name => 'STAGE', staging_schema_owner=>'SCOTT', profile_name=>'SYS_SQLPROF_0234d4b826c00001'); 
+EXEC DBMS_SQLTUNE.PACK_STGTAB_SQLPROF (staging_table_name => 'STAGE', staging_schema_owner=>'SCOTT', profile_name=>'SYS_SQLPROF_0134f8c56a7c0000'); 
+EXEC DBMS_SQLTUNE.PACK_STGTAB_SQLPROF (staging_table_name => 'STAGE', staging_schema_owner=>'SCOTT', profile_name=>'SYS_SQLPROF_0234b1d409530000'); 
+#export scott.stage
+expdp \'/ as sysdba\' directory=DATA_PUMP_DIR dumpfile=cplus_spm_profile.dmp logfile=cplus_spm_profile.log tables=scott.stage
+-- 12c
+#import scott.stage
+impdp \'/ as sysdba\' directory=DATA_PUMP_DIR dumpfile=cplus_spm_profile.dmp logfile=cplus_spm_profile.log tables=scott.stage
+
+If importing to the same schema, schema owner does not need to be specified:
+SQL> EXEC DBMS_SQLTUNE.UNPACK_STGTAB_SQLPROF(replace => TRUE,staging_table_name => 'STAGE', staging_schema_owner=>'SCOTT');
+
+However, if importing to different schema, the staging schema owner needs to be changed:|
+SQL> EXEC DBMS_SQLTUNE.UNPACK_STGTAB_SQLPROF(replace => TRUE,staging_table_name => 'STAGE',staging_schema_owner => 'SQLTXPLAIN');
+
+
+-- manage statistics
+select STATS_UPDATE_TIME from dba_tab_stats_history where table_name='BORDER' and owner='LCSRPT_MASTER' order by 1;
+execute dbms_stats.restore_table_stats('LCSRPT_MASTER','BORDER','08-OCT-16 06.09.20.440157 PM +08:00');
+exec DBMS_STATS.LOCK_TABLE_STATS('LCSRPT_MASTER','BORDER');
+
+EXEC DBMS_STATS.gather_table_stats('LCSRPT_MASTER','BORDER');
+
+
+### How long old stats are kept
+select dbms_stats.get_stats_history_retention from dual;
+### Set retention of old stats to 10 days, default is 31 days
+exec dbms_stats.alter_stats_history_retention(10);
+### Purge stats older than 10 days (best to do this in stages if there is a lot of data (sysdate-30,sydate-25 etc)
+exec DBMS_STATS.PURGE_STATS(SYSDATE-10);
+### Show available stats that have not been purged
+select dbms_stats.get_stats_history_availability from dual;
+
+
+### Check the current status of the autotask job:
+set pages 1000
+column WINDOW_NAME format a16
+column WINDOW_NEXT_TIME format a45
+column WINDOW_ACTIVE format a5
+column OPTIMIZER_STATS format a10
+
+select WINDOW_NAME, WINDOW_NEXT_TIME , WINDOW_ACTIVE,OPTIMIZER_STATS from DBA_AUTOTASK_WINDOW_CLIENTS order by WINDOW_NEXT_TIME ;
+
+### Fixed Objects Statistics (GATHER_FIXED_OBJECTS_STATS) Considerations (Doc ID 798257.1)
+### standard recommendation to gather fixed objects statistics under load
+exec dbms_stats.delete_fixed_objects_stats(); 
+select OWNER, TABLE_NAME, LAST_ANALYZED from dba_tab_statistics where table_name='X$KGLDP'; 
+exec dbms_stats.gather_fixed_objects_stats(); 
+
+
+-- lcsrpto 20170627
+set lines 200 pages 200
+COL CLIENT_NAME FORMAT A31
+SELECT
+  CLIENT_NAME,
+  STATUS
+FROM
+  DBA_AUTOTASK_CLIENT;
+
+COL WINDOW_NAME FORMAT A25
+SELECT * FROM DBA_AUTOTASK_WINDOW_CLIENTS ORDER BY WINDOW_NEXT_TIME;
+
+EXEC DBMS_AUTO_TASK_ADMIN.DISABLE('SQL TUNING ADVISOR',NULL,NULL);
+
+-- iipo 20171031
+EXEC DBMS_AUTO_TASK_ADMIN.DISABLE;

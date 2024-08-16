@@ -1,0 +1,112 @@
+-- not using these as program name is NOT logged in AUD$
+show parameter audit;
+
+select * from dba_audit_trail where rownum<10 and terminaL NOT IN ('UNKNOWN','unknown');
+
+select * from dba_audit_trail where timestamp>sysdate-1;
+
+select * from DBA_OBJ_AUDIT_OPTS;
+select * from DBA_PRIV_AUDIT_OPTS;
+select * from DBA_STMT_AUDIT_OPTS;
+
+-- Check locations.
+select table_name, tablespace_name
+from   dba_tables
+where  table_name in ('AUD$', 'FGA_LOG$')
+order by table_name;
+
+select max(timestamp) from dba_audit_trail;
+
+select segment_name table_name ,bytes/1024/1024 size_in_megabytes from dba_segments where segment_name in ('AUD$');
+
+select * from dba_tablespaces;
+
+select * from dba_objects where object_name='AUDIT_TRAIL';
+ 
+
+
+-- STGOLT
+-- original
+SQL> show parameter audit;
+
+NAME                                 TYPE        VALUE
+------------------------------------ ----------- ------------------------------
+audit_file_dest                      string      /u01/app/oracle/admin/STGOLT/a
+                                                 dump
+audit_sys_operations                 boolean     FALSE
+audit_syslog_level                   string
+audit_trail                          string      DB
+
+-- actions
+alter system set audit_trail=NONE scope=spfile;
+
+
+
+create table audit_trail
+tablespace USERS
+as
+select sysdate x$timestamp, rpad('*',20,'*') x$action, v.*
+from v$session v
+where 1=0
+/
+
+-- do NOT use this as it may break data guard
+create or replace trigger logon_trigger
+after logon on database
+begin
+insert into audit_trail
+select sysdate, 'LOGON', v.*
+from v$session v
+where sid = ( select sid from v$mystat where rownum = 1 );
+commit;
+end;
+/
+
+-- use this to avoid issue with data guard
+create or replace trigger logon_trigger
+after logon on database
+begin
+IF (SYS_CONTEXT('USERENV','DATABASE_ROLE') IN ('PRIMARY'))
+THEN
+insert into audit_trail
+select sysdate, 'LOGON', v.*
+from v$session v
+where sid = ( select sid from v$mystat where rownum = 1 );
+commit;
+END IF;
+end;
+/
+
+
+/*
+create or replace trigger logoff_trigger
+before logoff on database
+begin
+IF (SYS_CONTEXT('USERENV','DATABASE_ROLE') IN ('PRIMARY'))
+THEN
+insert into audit_trail
+select sysdate, 'LOGOFF', v.*
+from v$session v
+where sid = ( select sid from v$mystat where rownum = 1 );
+commit;
+END IF;
+end;
+/
+*/
+
+
+alter session set nls_date_format='YYYY-MM-DD HH24:MI:SS';
+SELECT * FROM SYS.audit_trail order by x$timestamp;
+
+
+select segment_name table_name ,bytes/1024/1024 size_in_megabytes from dba_segments where segment_name in ('AUDIT_TRAIL');
+
+SELECT job_name,
+       destination,
+       TO_CHAR(actual_start_date, 'DD-MON-YYYY HH24:MI:SS') AS actual_start_date,
+       run_duration,
+       status,
+       error#
+FROM   dba_scheduler_job_run_details
+-- WHERE  job_name = 'MULTI_DEST_JOB'
+ORDER BY actual_start_date;
